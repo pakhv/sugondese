@@ -2,11 +2,16 @@ use std::{
     io::{BufRead, BufReader, Read, Result, Write},
     net::{TcpListener, TcpStream},
     str::FromStr,
+    sync::{Arc, Mutex},
+    thread::{self, JoinHandle},
     time::Duration,
 };
 
+use http_request::HttpRequest;
+
 use crate::method_verb::MethodVerb;
 
+mod http_request;
 mod method_verb;
 
 const BAD_REQUEST_RESPONSE: &str = r"HTTP/1.1 400 Bad Request
@@ -14,31 +19,45 @@ const BAD_REQUEST_RESPONSE: &str = r"HTTP/1.1 400 Bad Request
 Bad Request";
 
 const CONTENT_LENGTH_HEADER: &str = "content-length:";
+const STREAM_READ_TIMEOUT: u64 = 5;
 
 pub struct WebApi<'a> {
     addr: &'a str,
-}
-
-#[derive(Debug)]
-struct HttpRequest {
-    method: MethodVerb,
-    uri: String,
-    body: Option<String>,
+    threads_num: usize,
 }
 
 impl<'a> WebApi<'a> {
-    pub fn new(addr: &'a str) -> WebApi {
-        WebApi { addr }
+    pub fn new(addr: &'a str, threads_num: usize) -> WebApi {
+        if threads_num <= 0 {
+            panic!("Threads number must be more than 0");
+        }
+
+        WebApi { addr, threads_num }
     }
 
     pub fn run(&mut self) -> Result<()> {
-        let tcp_listener = TcpListener::bind(self.addr)?;
+        let tcp_listener: Arc<Mutex<TcpListener>> =
+            Arc::new(Mutex::new(TcpListener::bind(self.addr)?));
 
-        for stream_result in tcp_listener.incoming() {
-            if let Ok(stream) = stream_result {
+        let mut threads: Vec<JoinHandle<()>> = Vec::new();
+
+        for i in 1..self.threads_num {
+            let listener = Arc::clone(&tcp_listener);
+
+            let handle = thread::spawn(move || loop {
+                let stream = listener.lock().unwrap().incoming().next().unwrap().unwrap();
+
+                println!("thread {i} handles request");
+
                 let request = parse_request(stream);
                 println!("{:?}", request);
-            }
+            });
+
+            threads.push(handle);
+        }
+
+        for th in threads {
+            th.join().unwrap();
         }
 
         Ok(())
@@ -53,7 +72,7 @@ impl<'a> WebApi<'a> {
 
 fn parse_request(stream: std::net::TcpStream) -> Option<HttpRequest> {
     stream
-        .set_read_timeout(Some(Duration::from_secs(5)))
+        .set_read_timeout(Some(Duration::from_secs(STREAM_READ_TIMEOUT)))
         .unwrap();
 
     let mut reader = BufReader::new(&stream);
