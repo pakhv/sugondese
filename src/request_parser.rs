@@ -1,4 +1,4 @@
-use std::io::{BufRead, Read, Result};
+use std::io::{BufRead, Read, Result, Write};
 use std::str::FromStr;
 use std::{io::BufReader, net::TcpStream, time::Duration};
 
@@ -8,8 +8,28 @@ const BAD_REQUEST_RESPONSE: &str = r"HTTP/1.1 400 Bad Request
 
 Bad Request";
 
+const OK_RESPONSE: &str = r"HTTP/1.1 200 OK
+
+";
+
+const NOT_FOUND_RESPONSE: &str = r"HTTP/1.1 404 Not Found
+
+";
+
 const CONTENT_LENGTH_HEADER: &str = "content-length:";
 const STREAM_READ_TIMEOUT: u64 = 5;
+
+pub fn return_bad_request(stream: std::net::TcpStream) -> () {
+    return_response(stream, BAD_REQUEST_RESPONSE.to_string());
+}
+
+pub fn return_not_found(stream: std::net::TcpStream) -> () {
+    return_response(stream, NOT_FOUND_RESPONSE.to_string());
+}
+
+pub fn return_ok_response(stream: std::net::TcpStream, body: &str) -> () {
+    return_response(stream, format!("{OK_RESPONSE}{body}"));
+}
 
 pub fn parse_request(stream: std::net::TcpStream) -> Option<HttpRequest> {
     stream
@@ -20,7 +40,6 @@ pub fn parse_request(stream: std::net::TcpStream) -> Option<HttpRequest> {
     let mut start_line = String::new();
 
     if reader.read_line(&mut start_line).is_err() {
-        return_bad_request(stream);
         return None;
     }
 
@@ -31,7 +50,6 @@ pub fn parse_request(stream: std::net::TcpStream) -> Option<HttpRequest> {
     let verb = MethodVerb::from_str(verb);
 
     if verb.is_err() || uri.is_empty() {
-        return_bad_request(stream);
         return None;
     }
 
@@ -48,7 +66,6 @@ pub fn parse_request(stream: std::net::TcpStream) -> Option<HttpRequest> {
     let headers = read_headers(&mut reader);
 
     if headers.is_err() {
-        return_bad_request(stream);
         return None;
     }
 
@@ -67,7 +84,6 @@ pub fn parse_request(stream: std::net::TcpStream) -> Option<HttpRequest> {
     let body = read_body(&mut reader, body_length);
 
     if body.is_err() {
-        return_bad_request(stream);
         return None;
     }
     let body = body.unwrap();
@@ -131,15 +147,15 @@ fn read_headers(reader: &mut BufReader<&TcpStream>) -> Result<String> {
     Ok(buffer)
 }
 
-fn return_bad_request(mut stream: std::net::TcpStream) -> () {
-    stream
-        .write_all(BAD_REQUEST_RESPONSE.as_bytes())
-        .unwrap_or_else(|e| println!("{e}"));
-}
-
 fn could_have_body(method: &MethodVerb) -> bool {
     match method {
         MethodVerb::Get | MethodVerb::Delete => false,
         MethodVerb::Post | MethodVerb::Put => true,
     }
+}
+
+fn return_response(mut stream: std::net::TcpStream, response: String) -> () {
+    stream
+        .write_all(response.as_bytes())
+        .unwrap_or_else(|e| println!("{e}"));
 }

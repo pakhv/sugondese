@@ -1,14 +1,15 @@
 use std::{
     collections::HashMap,
-    io::{Result, Write},
+    io::Result,
     net::{TcpListener, TcpStream},
     sync::{mpsc, Arc, Mutex},
     thread::{self, JoinHandle},
 };
 
 use http_request::HttpRequest;
+use request_parser::{return_not_found, return_ok_response};
 
-use crate::request_parser::parse_request;
+use crate::request_parser::{parse_request, return_bad_request};
 
 mod http_request;
 mod method_verb;
@@ -45,13 +46,14 @@ impl<'a> WebApi<'a> {
             let tx = tx.clone();
 
             let handle = thread::spawn(move || loop {
-                let mut stream = listener.lock().unwrap().incoming().next().unwrap().unwrap();
+                let stream = listener.lock().unwrap().incoming().next().unwrap().unwrap();
 
                 println!("thread {i} handles request");
 
-                let request = parse_request(stream);
+                let request = parse_request(stream.try_clone().unwrap());
 
                 if request.is_none() {
+                    return_bad_request(stream);
                     continue;
                 }
                 let request = request.unwrap();
@@ -60,20 +62,21 @@ impl<'a> WebApi<'a> {
                     .unwrap_or_else(|e| println!("{e}"));
             });
 
-            for (request, mut stream) in rx.iter() {
-                let handler = self.get_endpoints.get(&request.uri);
-
-                if handler.is_none() {
-                    continue;
-                }
-
-                let handler = handler.unwrap();
-                let response = handler(Route(HashMap::new()), Query(HashMap::new()));
-
-                // todo: write actual http response
-                stream.write(response.as_bytes());
-            }
             threads.push(handle);
+        }
+
+        for (request, stream) in rx.iter() {
+            let handler = self.get_endpoints.get(&request.uri);
+
+            if handler.is_none() {
+                return_not_found(stream);
+                continue;
+            }
+
+            let handler = handler.unwrap();
+            let response = handler(Route(HashMap::new()), Query(HashMap::new()));
+
+            return_ok_response(stream, response);
         }
 
         for th in threads {
@@ -88,10 +91,7 @@ impl<'a> WebApi<'a> {
         route: &'a str,
         handler: Box<dyn Fn(Route, Query) -> &'a str + 'static>,
     ) -> Self {
-        let _ = &self
-            .get_endpoints
-            .insert(route.to_string(), handler)
-            .unwrap();
+        let _ = &self.get_endpoints.insert(route.to_string(), handler);
 
         self
     }
