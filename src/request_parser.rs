@@ -1,8 +1,11 @@
+use std::collections::HashMap;
 use std::io::{BufRead, Read, Result, Write};
 use std::str::FromStr;
 use std::{io::BufReader, net::TcpStream, time::Duration};
 
-use crate::{http_request::HttpRequest, method_verb::MethodVerb};
+use crate::http_request::HttpRequest;
+use crate::method_verb::MethodVerb;
+use crate::uri_params::Query;
 
 const BAD_REQUEST_RESPONSE: &str = r"HTTP/1.1 400 Bad Request
 
@@ -95,6 +98,29 @@ pub fn parse_request(stream: std::net::TcpStream) -> Option<HttpRequest> {
     });
 }
 
+pub fn parse_query(uri: &str) -> Query {
+    let query_start = uri.find('?');
+
+    if query_start.is_none() {
+        return Query(HashMap::new());
+    }
+
+    let queries_pairs = uri.get(query_start.unwrap() + 1..).unwrap();
+    let mut queries = HashMap::new();
+
+    for pair in queries_pairs.split('&') {
+        let mut key_value = pair.split('=');
+        let key = key_value.next().unwrap_or("");
+        let value = key_value.next().unwrap_or("");
+
+        if key != "" && value != "" {
+            queries.insert(key.to_string(), value.to_string());
+        }
+    }
+
+    Query(queries)
+}
+
 fn read_body(reader: &mut BufReader<&TcpStream>, body_length: usize) -> Result<String> {
     let mut buffer = vec![0; body_length];
     let mut bytes_num = 0;
@@ -158,4 +184,46 @@ fn return_response(mut stream: std::net::TcpStream, response: String) -> () {
     stream
         .write_all(response.as_bytes())
         .unwrap_or_else(|e| println!("{e}"));
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use crate::uri_params::Query;
+
+    use super::parse_query;
+
+    #[test]
+    fn parse_query_params_empty_list() {
+        let query = parse_query("http://localhost:42069/");
+
+        assert_eq!(query, Query(HashMap::new()));
+    }
+
+    #[test]
+    fn parse_query_params_not_empty_list() {
+        let query = parse_query(
+            "http://localhost:42069/some/path?a_param=123&b_param=str&c_param=[123,abc,123]",
+        );
+
+        assert_eq!(
+            query,
+            Query(HashMap::from([
+                ("a_param".to_string(), "123".to_string()),
+                ("b_param".to_string(), "str".to_string()),
+                ("c_param".to_string(), "[123,abc,123]".to_string())
+            ]))
+        );
+    }
+
+    #[test]
+    fn parse_query_params_incorrect_query() {
+        let query = parse_query("http://localhost:42069/some/path?a_param=123&b_param=");
+
+        assert_eq!(
+            query,
+            Query(HashMap::from([("a_param".to_string(), "123".to_string()),]))
+        );
+    }
 }
