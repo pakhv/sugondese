@@ -5,7 +5,7 @@ use std::{io::BufReader, net::TcpStream, time::Duration};
 
 use crate::http_request::HttpRequest;
 use crate::method_verb::MethodVerb;
-use crate::uri_params::Query;
+use crate::uri_params::{Query, Route};
 
 const BAD_REQUEST_RESPONSE: &str = r"HTTP/1.1 400 Bad Request
 
@@ -21,6 +21,8 @@ const NOT_FOUND_RESPONSE: &str = r"HTTP/1.1 404 Not Found
 
 const CONTENT_LENGTH_HEADER: &str = "content-length:";
 const STREAM_READ_TIMEOUT: u64 = 5;
+
+pub type HttpRequestHandler = Box<dyn Fn(Route, Query) -> String>;
 
 pub fn return_bad_request(stream: std::net::TcpStream) -> () {
     return_response(stream, BAD_REQUEST_RESPONSE.to_string());
@@ -121,6 +123,60 @@ pub fn parse_query(uri: &str) -> Query {
     Query(queries)
 }
 
+pub fn parse_route<'a>(
+    endpoints: &'a HashMap<String, HttpRequestHandler>,
+    request_uri: &str,
+) -> (Option<&'a HttpRequestHandler>, Route) {
+    let query_start = request_uri.find('?');
+
+    let route = match query_start {
+        Some(idx) => request_uri.get(0..idx).unwrap(),
+        None => request_uri,
+    };
+
+    if let Some(handler) = endpoints.get(route) {
+        return (Some(handler), Route(HashMap::new()));
+    }
+
+    let request_parts: Vec<_> = route.split('/').collect();
+    let mut params: HashMap<String, String> = HashMap::new();
+    let mut handler: Option<&HttpRequestHandler> = None;
+
+    println!("{:?}", request_parts);
+
+    for key in endpoints.keys() {
+        let endpoint_parts: Vec<_> = key.split('/').collect();
+        println!("{:?}", endpoint_parts);
+
+        if request_parts.len() != endpoint_parts.len() {
+            continue;
+        }
+
+        handler = endpoints.get(key);
+
+        for (i, &part) in endpoint_parts.iter().enumerate() {
+            if part == request_parts[i] {
+                continue;
+            }
+
+            if part.chars().nth(0).unwrap() == '{'
+                && part.chars().nth(part.len() - 1).unwrap() == '}'
+            {
+                params.insert(
+                    part.get(1..part.len() - 1).unwrap().to_string(),
+                    request_parts[i].to_string(),
+                );
+            } else {
+                params.clear();
+                handler = None;
+                break;
+            }
+        }
+    }
+
+    (handler, Route(params))
+}
+
 fn read_body(reader: &mut BufReader<&TcpStream>, body_length: usize) -> Result<String> {
     let mut buffer = vec![0; body_length];
     let mut bytes_num = 0;
@@ -190,7 +246,10 @@ fn return_response(mut stream: std::net::TcpStream, response: String) -> () {
 mod tests {
     use std::collections::HashMap;
 
-    use crate::uri_params::Query;
+    use crate::{
+        request_parser::{parse_route, HttpRequestHandler},
+        uri_params::{Query, Route},
+    };
 
     use super::parse_query;
 
@@ -219,11 +278,66 @@ mod tests {
 
     #[test]
     fn parse_query_params_incorrect_query() {
-        let query = parse_query("http://localhost:42069/some/path?a_param=123&b_param=");
+        let query = parse_query("/some/path?a_param=123&b_param=");
 
         assert_eq!(
             query,
             Query(HashMap::from([("a_param".to_string(), "123".to_string()),]))
         );
+    }
+
+    #[test]
+    fn parse_route_params_empty_list() {
+        let expected_handler: HttpRequestHandler = Box::new(|_, _| "".to_string());
+        let handler_1: HttpRequestHandler = Box::new(|_, _| "".to_string());
+        let handler_2: HttpRequestHandler = Box::new(|_, _| "".to_string());
+
+        let handlers = &HashMap::from([
+            ("/some/very/very/very/long/path".to_string(), handler_1),
+            ("/some/very/very/long/path".to_string(), expected_handler),
+            ("/some/very/long/path".to_string(), handler_2),
+        ]);
+
+        let (handler, route) =
+            parse_route(handlers, "/some/very/very/long/path?a_param=123&b_param=");
+
+        assert_eq!(route, Route(HashMap::new()));
+        assert!(&handler.is_some());
+    }
+
+    #[test]
+    fn parse_route_params_not_empty_list() {
+        let expected_handler: HttpRequestHandler = Box::new(|_, _| "".to_string());
+        let handler_1: HttpRequestHandler = Box::new(|_, _| "".to_string());
+        let handler_2: HttpRequestHandler = Box::new(|_, _| "".to_string());
+
+        let handlers = &HashMap::from([
+            (
+                "/some/very/{param_1}/very/{param_2}/path".to_string(),
+                handler_1,
+            ),
+            ("/some/very/long/path".to_string(), handler_2),
+            (
+                "/some/{param_1}/very/{param_2}/{param_3}".to_string(),
+                expected_handler,
+            ),
+        ]);
+
+        let (handler, route) =
+            parse_route(handlers, "/some/very/very/long/path?a_param=123&b_param=");
+
+        let Route(actual_route_map) = route;
+        let mut actual_route_vec: Vec<_> = actual_route_map.iter().collect();
+        actual_route_vec.sort_by(|(a, _), (b, _)| a.cmp(b));
+
+        assert_eq!(
+            actual_route_vec,
+            vec!(
+                (&"param_1".to_string(), &"very".to_string()),
+                (&"param_2".to_string(), &"long".to_string()),
+                (&"param_3".to_string(), &"path".to_string()),
+            )
+        );
+        assert!(&handler.is_some());
     }
 }

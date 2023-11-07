@@ -9,15 +9,15 @@ use std::{
 use crate::{
     http_request::HttpRequest,
     request_parser::{
-        parse_query, parse_request, return_bad_request, return_not_found, return_ok_response,
+        parse_query, parse_request, parse_route, return_bad_request, return_not_found,
+        return_ok_response, HttpRequestHandler,
     },
-    uri_params::{Query, Route},
 };
 
 pub struct WebApi<'a> {
     addr: &'a str,
     threads_num: usize,
-    get_endpoints: HashMap<String, Box<dyn Fn(Route, Query) -> &'a str>>,
+    get_endpoints: HashMap<String, HttpRequestHandler>,
 }
 
 impl<'a> WebApi<'a> {
@@ -65,7 +65,7 @@ impl<'a> WebApi<'a> {
         }
 
         for (request, stream) in rx.iter() {
-            let handler = self.get_endpoints.get(&request.uri);
+            let (handler, route) = parse_route(&self.get_endpoints, &request.uri);
 
             if handler.is_none() {
                 return_not_found(stream);
@@ -74,9 +74,9 @@ impl<'a> WebApi<'a> {
 
             let handler = handler.unwrap();
             let query = parse_query(&request.uri);
-            let response = handler(Route(HashMap::new()), query);
+            let response = handler(route, query);
 
-            return_ok_response(stream, response);
+            return_ok_response(stream, &response);
         }
 
         for th in threads {
@@ -86,11 +86,7 @@ impl<'a> WebApi<'a> {
         Ok(())
     }
 
-    pub fn get(
-        mut self,
-        route: &'a str,
-        handler: Box<dyn Fn(Route, Query) -> &'a str + 'static>,
-    ) -> Self {
+    pub fn get(mut self, route: &'a str, handler: HttpRequestHandler) -> Self {
         let _ = &self.get_endpoints.insert(route.to_string(), handler);
 
         self
@@ -99,11 +95,15 @@ impl<'a> WebApi<'a> {
 
 #[cfg(test)]
 mod tests {
+    use super::WebApi;
     use crate::uri_params::{Query, Route};
 
-    use super::WebApi;
-    fn hello_handler<'a>(_route_params: Route, _query_params: Query) -> &'a str {
-        "hello from handler"
+    fn hello_handler(_route_params: Route, _query_params: Query) -> String {
+        "hello from handler".to_string()
+    }
+
+    fn route_params_handler(_route_params: Route, _query_params: Query) -> String {
+        "hello from route params handler".to_string()
     }
 
     #[test]
@@ -111,6 +111,10 @@ mod tests {
     fn aggr_result_struct_err() {
         let _ = WebApi::new("172.17.0.2:6080", 5)
             .get("/", Box::new(hello_handler))
+            .get(
+                "/route_params/{param_1}/{param_2}/hello",
+                Box::new(route_params_handler),
+            )
             .run();
     }
 }
