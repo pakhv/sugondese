@@ -1,22 +1,22 @@
 use std::str::FromStr;
 
 #[derive(Debug)]
-pub enum MethodVerb {
+pub enum HttpMethod {
     Get,
     Post,
     Delete,
     Put,
 }
 
-impl FromStr for MethodVerb {
+impl FromStr for HttpMethod {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "GET" => Ok(MethodVerb::Get),
-            "POST" => Ok(MethodVerb::Post),
-            "DELETE" => Ok(MethodVerb::Delete),
-            "PUT" => Ok(MethodVerb::Put),
+            "GET" => Ok(HttpMethod::Get),
+            "POST" => Ok(HttpMethod::Post),
+            "DELETE" => Ok(HttpMethod::Delete),
+            "PUT" => Ok(HttpMethod::Put),
             _ => Err("Invalid request verb".to_string()),
         }
     }

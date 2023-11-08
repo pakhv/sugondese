@@ -5,7 +5,7 @@ use std::{io::BufReader, net::TcpStream, time::Duration};
 
 use crate::http_request::HttpRequest;
 use crate::http_response::HttpResponse;
-use crate::method_verb::MethodVerb;
+use crate::method_verb::HttpMethod;
 use crate::uri_params::{Query, Route};
 
 const CONTENT_LENGTH_HEADER: &str = "content-length:";
@@ -45,7 +45,7 @@ pub fn parse_request(stream: std::net::TcpStream) -> Option<HttpRequest> {
     let verb = start_line_iter.next().unwrap_or("");
     let uri = start_line_iter.next().unwrap_or("");
 
-    let verb = MethodVerb::from_str(verb);
+    let verb = HttpMethod::from_str(verb);
 
     if verb.is_err() || uri.is_empty() {
         return None;
@@ -222,10 +222,10 @@ fn read_headers(reader: &mut BufReader<&TcpStream>) -> Result<String> {
     Ok(buffer)
 }
 
-fn could_have_body(method: &MethodVerb) -> bool {
+fn could_have_body(method: &HttpMethod) -> bool {
     match method {
-        MethodVerb::Get | MethodVerb::Delete => false,
-        MethodVerb::Post | MethodVerb::Put => true,
+        HttpMethod::Get | HttpMethod::Delete => false,
+        HttpMethod::Post | HttpMethod::Put => true,
     }
 }
 

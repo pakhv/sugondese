@@ -18,6 +18,9 @@ pub struct WebApi<'a> {
     addr: &'a str,
     threads_num: usize,
     get_endpoints: HashMap<String, HttpRequestHandler>,
+    post_endpoints: HashMap<String, HttpRequestHandler>,
+    delete_endpoints: HashMap<String, HttpRequestHandler>,
+    put_endpoints: HashMap<String, HttpRequestHandler>,
 }
 
 impl<'a> WebApi<'a> {
@@ -30,6 +33,9 @@ impl<'a> WebApi<'a> {
             addr,
             threads_num,
             get_endpoints: HashMap::new(),
+            post_endpoints: HashMap::new(),
+            delete_endpoints: HashMap::new(),
+            put_endpoints: HashMap::new(),
         }
     }
 
@@ -71,7 +77,8 @@ impl<'a> WebApi<'a> {
         }
 
         for (request, stream) in rx.iter() {
-            let (handler, route) = parse_route(&self.get_endpoints, &request.uri);
+            let endpoints_map = self.get_endpoints_map(&request);
+            let (handler, route) = parse_route(endpoints_map, &request.uri);
 
             if handler.is_none() {
                 return_response(
@@ -103,6 +110,15 @@ impl<'a> WebApi<'a> {
 
         self
     }
+
+    fn get_endpoints_map(&self, request: &HttpRequest) -> &HashMap<String, HttpRequestHandler> {
+        match request.method {
+            crate::method_verb::HttpMethod::Get => &self.get_endpoints,
+            crate::method_verb::HttpMethod::Post => &self.post_endpoints,
+            crate::method_verb::HttpMethod::Delete => &self.delete_endpoints,
+            crate::method_verb::HttpMethod::Put => &self.put_endpoints,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -122,7 +138,7 @@ mod tests {
     }
 
     #[test]
-    //#[ignore = "starts api"]
+    #[ignore = "starts api"]
     fn aggr_result_struct_err() {
         let _ = WebApi::new("172.17.0.2:6080", 5)
             .get("/", Box::new(hello_handler))
