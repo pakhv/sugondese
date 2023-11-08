@@ -8,9 +8,9 @@ use std::{
 
 use crate::{
     http_request::HttpRequest,
+    http_response::{HttpResponse, HttpStatus},
     request_parser::{
-        parse_query, parse_request, parse_route, return_bad_request, return_not_found,
-        return_ok_response, HttpRequestHandler,
+        parse_query, parse_request, parse_route, return_response, HttpRequestHandler,
     },
 };
 
@@ -52,7 +52,13 @@ impl<'a> WebApi<'a> {
                 let request = parse_request(stream.try_clone().unwrap());
 
                 if request.is_none() {
-                    return_bad_request(stream);
+                    return_response(
+                        stream,
+                        HttpResponse {
+                            status: HttpStatus::BadRequest,
+                            body: None,
+                        },
+                    );
                     continue;
                 }
                 let request = request.unwrap();
@@ -68,7 +74,13 @@ impl<'a> WebApi<'a> {
             let (handler, route) = parse_route(&self.get_endpoints, &request.uri);
 
             if handler.is_none() {
-                return_not_found(stream);
+                return_response(
+                    stream,
+                    HttpResponse {
+                        status: HttpStatus::NotFound,
+                        body: None,
+                    },
+                );
                 continue;
             }
 
@@ -76,7 +88,7 @@ impl<'a> WebApi<'a> {
             let query = parse_query(&request.uri);
             let response = handler(route, query);
 
-            return_ok_response(stream, &response);
+            return_response(stream, response);
         }
 
         for th in threads {
@@ -96,18 +108,21 @@ impl<'a> WebApi<'a> {
 #[cfg(test)]
 mod tests {
     use super::WebApi;
-    use crate::uri_params::{Query, Route};
+    use crate::{
+        http_response::HttpResponse,
+        uri_params::{Query, Route},
+    };
 
-    fn hello_handler(_route_params: Route, _query_params: Query) -> String {
-        "hello from handler".to_string()
+    fn hello_handler(_route_params: Route, _query_params: Query) -> HttpResponse {
+        HttpResponse::ok(Some("hello from handler".to_string()))
     }
 
-    fn route_params_handler(_route_params: Route, _query_params: Query) -> String {
-        "hello from route params handler".to_string()
+    fn route_params_handler(_route_params: Route, _query_params: Query) -> HttpResponse {
+        HttpResponse::ok(Some("hello from route params handler".to_string()))
     }
 
     #[test]
-    #[ignore = "starts api"]
+    //#[ignore = "starts api"]
     fn aggr_result_struct_err() {
         let _ = WebApi::new("172.17.0.2:6080", 5)
             .get("/", Box::new(hello_handler))

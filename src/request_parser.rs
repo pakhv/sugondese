@@ -4,36 +4,29 @@ use std::str::FromStr;
 use std::{io::BufReader, net::TcpStream, time::Duration};
 
 use crate::http_request::HttpRequest;
+use crate::http_response::HttpResponse;
 use crate::method_verb::MethodVerb;
 use crate::uri_params::{Query, Route};
-
-const BAD_REQUEST_RESPONSE: &str = r"HTTP/1.1 400 Bad Request
-
-Bad Request";
-
-const OK_RESPONSE: &str = r"HTTP/1.1 200 OK
-
-";
-
-const NOT_FOUND_RESPONSE: &str = r"HTTP/1.1 404 Not Found
-
-";
 
 const CONTENT_LENGTH_HEADER: &str = "content-length:";
 const STREAM_READ_TIMEOUT: u64 = 5;
 
-pub type HttpRequestHandler = Box<dyn Fn(Route, Query) -> String>;
+pub type HttpRequestHandler = Box<dyn Fn(Route, Query) -> HttpResponse>;
 
-pub fn return_bad_request(stream: std::net::TcpStream) -> () {
-    return_response(stream, BAD_REQUEST_RESPONSE.to_string());
-}
+pub fn return_response(mut stream: std::net::TcpStream, response: HttpResponse) -> () {
+    let status_description = response.status.get_status_info();
+    let mut response_message = format!(
+        "HTTP/1.1 {} {}\n\n",
+        status_description.status_code, status_description.status_text
+    );
 
-pub fn return_not_found(stream: std::net::TcpStream) -> () {
-    return_response(stream, NOT_FOUND_RESPONSE.to_string());
-}
+    if response.body.is_some() {
+        response_message = format!("{response_message}{}", response.body.unwrap());
+    }
 
-pub fn return_ok_response(stream: std::net::TcpStream, body: &str) -> () {
-    return_response(stream, format!("{OK_RESPONSE}{body}"));
+    stream
+        .write_all(response_message.as_bytes())
+        .unwrap_or_else(|e| println!("{e}"));
 }
 
 pub fn parse_request(stream: std::net::TcpStream) -> Option<HttpRequest> {
@@ -236,17 +229,12 @@ fn could_have_body(method: &MethodVerb) -> bool {
     }
 }
 
-fn return_response(mut stream: std::net::TcpStream, response: String) -> () {
-    stream
-        .write_all(response.as_bytes())
-        .unwrap_or_else(|e| println!("{e}"));
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
     use crate::{
+        http_response::HttpResponse,
         request_parser::{parse_route, HttpRequestHandler},
         uri_params::{Query, Route},
     };
@@ -288,9 +276,9 @@ mod tests {
 
     #[test]
     fn parse_route_params_empty_list() {
-        let expected_handler: HttpRequestHandler = Box::new(|_, _| "".to_string());
-        let handler_1: HttpRequestHandler = Box::new(|_, _| "".to_string());
-        let handler_2: HttpRequestHandler = Box::new(|_, _| "".to_string());
+        let expected_handler: HttpRequestHandler = Box::new(|_, _| HttpResponse::ok(None));
+        let handler_1: HttpRequestHandler = Box::new(|_, _| HttpResponse::ok(None));
+        let handler_2: HttpRequestHandler = Box::new(|_, _| HttpResponse::ok(None));
 
         let handlers = &HashMap::from([
             ("/some/very/very/very/long/path".to_string(), handler_1),
@@ -307,9 +295,9 @@ mod tests {
 
     #[test]
     fn parse_route_params_not_empty_list() {
-        let expected_handler: HttpRequestHandler = Box::new(|_, _| "".to_string());
-        let handler_1: HttpRequestHandler = Box::new(|_, _| "".to_string());
-        let handler_2: HttpRequestHandler = Box::new(|_, _| "".to_string());
+        let expected_handler: HttpRequestHandler = Box::new(|_, _| HttpResponse::ok(None));
+        let handler_1: HttpRequestHandler = Box::new(|_, _| HttpResponse::ok(None));
+        let handler_2: HttpRequestHandler = Box::new(|_, _| HttpResponse::ok(None));
 
         let handlers = &HashMap::from([
             (
