@@ -9,6 +9,7 @@ use std::{
 use crate::{
     http_request::HttpRequest,
     http_response::{HttpResponse, HttpStatus},
+    method_verb::HttpMethod,
     request_parser::{
         parse_query, parse_request, parse_route, return_response, HttpRequestHandler,
     },
@@ -77,7 +78,7 @@ impl<'a> WebApi<'a> {
         }
 
         for (request, stream) in rx.iter() {
-            let endpoints_map = self.get_endpoints_map(&request);
+            let endpoints_map = self.get_endpoints_map(request.method);
             let (handler, route) = parse_route(endpoints_map, &request.uri);
 
             if handler.is_none() {
@@ -111,8 +112,23 @@ impl<'a> WebApi<'a> {
         self
     }
 
-    fn get_endpoints_map(&self, request: &HttpRequest) -> &HashMap<String, HttpRequestHandler> {
-        match request.method {
+    pub fn post(mut self, route: &'a str, handler: HttpRequestHandler) -> Self {
+        let _ = &self.post_endpoints.insert(route.to_string(), handler);
+        self
+    }
+
+    pub fn delete(mut self, route: &'a str, handler: HttpRequestHandler) -> Self {
+        let _ = &self.delete_endpoints.insert(route.to_string(), handler);
+        self
+    }
+
+    pub fn put(mut self, route: &'a str, handler: HttpRequestHandler) -> Self {
+        let _ = &self.put_endpoints.insert(route.to_string(), handler);
+        self
+    }
+
+    fn get_endpoints_map(&self, method: HttpMethod) -> &HashMap<String, HttpRequestHandler> {
+        match method {
             crate::method_verb::HttpMethod::Get => &self.get_endpoints,
             crate::method_verb::HttpMethod::Post => &self.post_endpoints,
             crate::method_verb::HttpMethod::Delete => &self.delete_endpoints,
@@ -137,6 +153,10 @@ mod tests {
         HttpResponse::ok(Some("hello from route params handler".to_string()))
     }
 
+    fn post_handler(_route_params: Route, _query_params: Query) -> HttpResponse {
+        HttpResponse::ok(Some("hello from post method".to_string()))
+    }
+
     #[test]
     #[ignore = "starts api"]
     fn aggr_result_struct_err() {
@@ -146,6 +166,7 @@ mod tests {
                 "/route_params/{param_1}/{param_2}/hello",
                 Box::new(route_params_handler),
             )
+            .post("/", Box::new(post_handler))
             .run();
     }
 }

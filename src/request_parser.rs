@@ -135,11 +135,8 @@ pub fn parse_route<'a>(
     let mut params: HashMap<String, String> = HashMap::new();
     let mut handler: Option<&HttpRequestHandler> = None;
 
-    println!("{:?}", request_parts);
-
     for key in endpoints.keys() {
         let endpoint_parts: Vec<_> = key.split('/').collect();
-        println!("{:?}", endpoint_parts);
 
         if request_parts.len() != endpoint_parts.len() {
             continue;
@@ -152,7 +149,8 @@ pub fn parse_route<'a>(
                 continue;
             }
 
-            if part.chars().nth(0).unwrap() == '{'
+            if part.len() > 0
+                && part.chars().nth(0).unwrap() == '{'
                 && part.chars().nth(part.len() - 1).unwrap() == '}'
             {
                 params.insert(
