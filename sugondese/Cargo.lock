@@ -9,6 +9,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af150ab688ff2122fcef229be89cb50dd66af9e01a4ff320cc137eecc9bacc38"
 
 [[package]]
+name = "ligma"
+version = "0.1.0"
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -67,6 +71,7 @@ dependencies = [
 name = "sugondese"
 version = "0.1.0"
 dependencies = [
+ "ligma",
  "serde",
  "serde_json",
 ]

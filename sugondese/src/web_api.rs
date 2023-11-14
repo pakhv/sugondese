@@ -108,7 +108,6 @@ impl<'a> WebApi<'a> {
 
     pub fn get(mut self, route: &'a str, handler: HttpRequestHandler) -> Self {
         let _ = &self.get_endpoints.insert(route.to_string(), handler);
-
         self
     }
 
