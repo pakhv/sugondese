@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 
-#[proc_macro]
-pub fn get(input: TokenStream) -> TokenStream {
+#[proc_macro_attribute]
+pub fn get(attr: TokenStream, item: TokenStream) -> TokenStream {
     todo!();
 }
 
