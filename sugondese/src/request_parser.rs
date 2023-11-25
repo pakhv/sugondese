@@ -3,8 +3,6 @@ use std::io::{BufRead, Read, Result, Write};
 use std::str::FromStr;
 use std::{io::BufReader, net::TcpStream, time::Duration};
 
-use ligma::get;
-
 use crate::http_request::HttpRequest;
 use crate::http_response::HttpResponse;
 use crate::method_verb::HttpMethod;

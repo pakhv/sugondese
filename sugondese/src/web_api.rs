@@ -140,7 +140,8 @@ impl<'a> WebApi<'a> {
 mod tests {
     use std::collections::HashMap;
 
-    use ligma::get;
+    use ligma::http_handler;
+    use serde::{Deserialize, Serialize};
 
     use super::WebApi;
     use crate::{
@@ -173,14 +174,26 @@ mod tests {
             .run();
     }
 
-    #[get]
-    fn test_fn(route: Route, query: Query) -> () {
-        println!("hello from original function");
+    #[derive(Debug, Serialize, Deserialize)]
+    struct TestStruct {
+        omega: u32,
+    }
+
+    #[http_handler]
+    fn test_fn(route: Route, query: Query, body: TestStruct) -> &'static str {
+        "hello from original function"
     }
 
     #[test]
     fn macro_test() {
         //test_fn_1(Route(HashMap::new()), Query(HashMap::new()));
-        test_fn(Route(HashMap::new()), Query(HashMap::new()));
+        println!(
+            "{}",
+            test_fn(
+                Route(HashMap::new()),
+                Query(HashMap::new()),
+                "{ \"omega\": 5 }",
+            )
+        );
     }
 }
