@@ -138,6 +138,10 @@ impl<'a> WebApi<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use ligma::get;
+
     use super::WebApi;
     use crate::{
         http_response::HttpResponse,
@@ -167,5 +171,16 @@ mod tests {
             )
             .post("/", Box::new(post_handler))
             .run();
+    }
+
+    #[get]
+    fn test_fn(route: Route, query: Query) -> () {
+        println!("hello from original function");
+    }
+
+    #[test]
+    fn macro_test() {
+        //test_fn_1(Route(HashMap::new()), Query(HashMap::new()));
+        test_fn(Route(HashMap::new()), Query(HashMap::new()));
     }
 }
