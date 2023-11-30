@@ -11,7 +11,7 @@ use crate::uri_params::{Query, Route};
 const CONTENT_LENGTH_HEADER: &str = "content-length:";
 const STREAM_READ_TIMEOUT: u64 = 5;
 
-pub type HttpRequestHandler = Box<dyn Fn(Route, Query) -> HttpResponse>;
+pub type HttpRequestHandler = Box<dyn Fn(Route, Query, Option<String>) -> HttpResponse>;
 
 pub fn return_response(mut stream: std::net::TcpStream, response: HttpResponse) -> () {
     let status_description = response.status.get_status_info();
@@ -274,9 +274,9 @@ mod tests {
 
     #[test]
     fn parse_route_params_empty_list() {
-        let expected_handler: HttpRequestHandler = Box::new(|_, _| HttpResponse::ok(None));
-        let handler_1: HttpRequestHandler = Box::new(|_, _| HttpResponse::ok(None));
-        let handler_2: HttpRequestHandler = Box::new(|_, _| HttpResponse::ok(None));
+        let expected_handler: HttpRequestHandler = Box::new(|_, _, _| HttpResponse::ok(None));
+        let handler_1: HttpRequestHandler = Box::new(|_, _, _| HttpResponse::ok(None));
+        let handler_2: HttpRequestHandler = Box::new(|_, _, _| HttpResponse::ok(None));
 
         let handlers = &HashMap::from([
             ("/some/very/very/very/long/path".to_string(), handler_1),
@@ -293,9 +293,9 @@ mod tests {
 
     #[test]
     fn parse_route_params_not_empty_list() {
-        let expected_handler: HttpRequestHandler = Box::new(|_, _| HttpResponse::ok(None));
-        let handler_1: HttpRequestHandler = Box::new(|_, _| HttpResponse::ok(None));
-        let handler_2: HttpRequestHandler = Box::new(|_, _| HttpResponse::ok(None));
+        let expected_handler: HttpRequestHandler = Box::new(|_, _, _| HttpResponse::ok(None));
+        let handler_1: HttpRequestHandler = Box::new(|_, _, _| HttpResponse::ok(None));
+        let handler_2: HttpRequestHandler = Box::new(|_, _, _| HttpResponse::ok(None));
 
         let handlers = &HashMap::from([
             (

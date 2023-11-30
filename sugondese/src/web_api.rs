@@ -94,7 +94,7 @@ impl<'a> WebApi<'a> {
 
             let handler = handler.unwrap();
             let query = parse_query(&request.uri);
-            let response = handler(route, query);
+            let response = handler(route, query, request.body);
 
             return_response(stream, response);
         }
@@ -149,15 +149,27 @@ mod tests {
         uri_params::{Query, Route},
     };
 
-    fn hello_handler(_route_params: Route, _query_params: Query) -> HttpResponse {
+    fn hello_handler(
+        _route_params: Route,
+        _query_params: Query,
+        _body: Option<String>,
+    ) -> HttpResponse {
         HttpResponse::ok(Some("hello from handler".to_string()))
     }
 
-    fn route_params_handler(_route_params: Route, _query_params: Query) -> HttpResponse {
+    fn route_params_handler(
+        _route_params: Route,
+        _query_params: Query,
+        _body: Option<String>,
+    ) -> HttpResponse {
         HttpResponse::ok(Some("hello from route params handler".to_string()))
     }
 
-    fn post_handler(_route_params: Route, _query_params: Query) -> HttpResponse {
+    fn post_handler(
+        _route_params: Route,
+        _query_params: Query,
+        _body: Option<String>,
+    ) -> HttpResponse {
         HttpResponse::ok(Some("hello from post method".to_string()))
     }
 
@@ -180,19 +192,18 @@ mod tests {
     }
 
     #[http_handler]
-    fn test_fn(route: Route, query: Query, body: TestStruct) -> &'static str {
+    fn test_fn(_route: Route, _query: Query, _body: TestStruct) -> &'static str {
         "hello from original function"
     }
 
     #[test]
     fn macro_test() {
-        //test_fn_1(Route(HashMap::new()), Query(HashMap::new()));
         println!(
             "{}",
             test_fn(
                 Route(HashMap::new()),
                 Query(HashMap::new()),
-                "{ \"omega\": 5 }",
+                Some("{ \"omega\": 5 }".to_string()),
             )
         );
     }
