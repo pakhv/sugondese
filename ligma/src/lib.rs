@@ -4,6 +4,15 @@ use syn::{
     parse_macro_input, punctuated::Punctuated, token::Comma, FnArg, Ident, ItemFn, Pat, Type,
 };
 
+#[derive(Clone)]
+struct FnArgInfo {
+    name: String,
+    arg: FnArg,
+}
+
+const ROUTE_NAME: &str = "Route";
+const QUERY_NAME: &str = "Query";
+
 #[proc_macro_attribute]
 pub fn http_handler(_: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as syn::ItemFn);
@@ -14,19 +23,22 @@ pub fn http_handler(_: TokenStream, item: TokenStream) -> TokenStream {
 
     let return_type = input.sig.output;
 
-    let mut args = input.sig.inputs.iter();
-    let route = args.next().unwrap();
-    let route_pat = extract_arg_pat(route.clone());
+    let args = input.sig.inputs;
+    let args = get_args_types_names(&args);
 
-    let query = args.next().unwrap();
-    let query_pat = extract_arg_pat(query.clone());
+    let route_arg = quote! { route: Route }.into();
+    let route_arg = parse_macro_input!(route_arg as syn::FnArg);
 
-    let body = args.next();
+    let query_arg = quote! { query: Query }.into();
+    let query_arg = parse_macro_input!(query_arg as syn::FnArg);
 
-    if body.is_none() {
+    let args_quote = build_args_quote(&args, route_arg, query_arg);
+    let body_quote = get_body_quote(&args);
+
+    if body_quote.is_none() {
         return quote! {
-            fn #wrapper_handler_ident(#route, #query, body_string: Option<String>) #return_type {
-                return #original_handler_ident(#route_pat, #query_pat);
+            fn #wrapper_handler_ident(route: Route, query: Query, _body_string: Option<String>) #return_type {
+                return #original_handler_ident(#args_quote);
             }
 
             #original_handler
@@ -34,12 +46,10 @@ pub fn http_handler(_: TokenStream, item: TokenStream) -> TokenStream {
         .into();
     }
 
-    let body_type = extract_arg_type(body.unwrap().clone());
-
     quote! {
-        fn #wrapper_handler_ident(#route, #query, body_string: Option<String>) #return_type {
-            let body_obj: #body_type = serde_json::from_str(&body_string.unwrap()).unwrap();
-            return #original_handler_ident(#route_pat, #query_pat, body_obj);
+        fn #wrapper_handler_ident(route: Route, query: Query, body_string: Option<String>) #return_type {
+            #body_quote
+            return #original_handler_ident(#args_quote);
         }
 
         #original_handler
@@ -47,11 +57,83 @@ pub fn http_handler(_: TokenStream, item: TokenStream) -> TokenStream {
     .into()
 }
 
-fn get_args_types_names(args: &Punctuated<FnArg, Comma>) -> Vec<String> {
-    let mut args_types_names: Vec<String> = vec![];
+fn get_body_quote(args_types_names: &Vec<FnArgInfo>) -> Option<proc_macro2::TokenStream> {
+    let body_arg_type_name = args_types_names
+        .iter()
+        .find(|&a| a.name != ROUTE_NAME && a.name != QUERY_NAME);
+
+    if body_arg_type_name.is_none() {
+        return None;
+    }
+
+    let body_type = extract_arg_type(body_arg_type_name.unwrap().arg.clone());
+
+    Some(
+        quote! { let body_obj: #body_type = serde_json::from_str(&body_string.unwrap()).unwrap(); },
+    )
+}
+
+fn build_args_quote(
+    args_types_names: &Vec<FnArgInfo>,
+    route_arg: FnArg,
+    query_arg: FnArg,
+) -> proc_macro2::TokenStream {
+    let mut result = quote! {};
+
+    if args_types_names.len() == 0 {
+        return result;
+    }
+
+    let body_args_count = args_types_names
+        .iter()
+        .filter(|a| a.name != ROUTE_NAME && a.name != QUERY_NAME)
+        .count();
+
+    if body_args_count > 1 {
+        panic!("omegalul stop");
+    }
+
+    for (idx, arg_info) in args_types_names.iter().enumerate() {
+        let arg = get_arg_quote(arg_info.clone(), route_arg.clone(), query_arg.clone());
+
+        result = if idx == 0 {
+            quote! { #arg }
+        } else {
+            quote! { #result, #arg }
+        }
+    }
+
+    result
+}
+
+fn get_arg_quote(
+    arg_info: FnArgInfo,
+    route_arg: FnArg,
+    query_arg: FnArg,
+) -> proc_macro2::TokenStream {
+    match &arg_info.name {
+        name if name == &ROUTE_NAME => {
+            let pat = extract_arg_pat(route_arg);
+            return quote! { #pat };
+        }
+        name if name == &QUERY_NAME => {
+            let pat = extract_arg_pat(query_arg);
+            return quote! { #pat };
+        }
+        _ => quote! { body_obj },
+    }
+}
+
+//fn get_body_fn_arg()
+
+fn get_args_types_names(args: &Punctuated<FnArg, Comma>) -> Vec<FnArgInfo> {
+    let mut args_types_names: Vec<FnArgInfo> = vec![];
 
     for arg in args {
-        args_types_names.push(get_fn_arg_type(arg))
+        args_types_names.push(FnArgInfo {
+            name: get_fn_arg_type(arg),
+            arg: arg.clone(),
+        })
     }
 
     args_types_names

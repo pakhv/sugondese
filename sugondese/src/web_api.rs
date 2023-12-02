@@ -6,6 +6,8 @@ use std::{
     thread::{self, JoinHandle},
 };
 
+use ligma::http_handler;
+
 use crate::{
     http_request::HttpRequest,
     http_response::{HttpResponse, HttpStatus},
@@ -13,6 +15,7 @@ use crate::{
     request_parser::{
         parse_query, parse_request, parse_route, return_response, HttpRequestHandler,
     },
+    uri_params::{Query, Route},
 };
 
 pub struct WebApi<'a> {
@@ -134,6 +137,11 @@ impl<'a> WebApi<'a> {
             crate::method_verb::HttpMethod::Put => &self.put_endpoints,
         }
     }
+}
+
+#[http_handler]
+fn test_fn(_route: Route, _query: Query, _a: String) -> &'static str {
+    "hello from original function"
 }
 
 #[cfg(test)]
