@@ -1,3 +1,5 @@
+use serde::Serialize;
+
 #[derive(Debug)]
 pub struct HttpResponse {
     pub status: HttpStatus,
@@ -48,4 +50,12 @@ impl HttpStatus {
             },
         }
     }
+}
+
+pub struct Response<T>
+where
+    T: Serialize,
+{
+    pub status: HttpStatus,
+    pub data: Option<T>,
 }

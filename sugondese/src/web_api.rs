@@ -6,8 +6,6 @@ use std::{
     thread::{self, JoinHandle},
 };
 
-use ligma::http_handler;
-
 use crate::{
     http_request::HttpRequest,
     http_response::{HttpResponse, HttpStatus},
@@ -15,7 +13,6 @@ use crate::{
     request_parser::{
         parse_query, parse_request, parse_route, return_response, HttpRequestHandler,
     },
-    uri_params::{Query, Route},
 };
 
 pub struct WebApi<'a> {
@@ -136,83 +133,5 @@ impl<'a> WebApi<'a> {
             crate::method_verb::HttpMethod::Delete => &self.delete_endpoints,
             crate::method_verb::HttpMethod::Put => &self.put_endpoints,
         }
-    }
-}
-
-#[http_handler]
-fn test_fn(_route: Route, _query: Query, _a: String) -> &'static str {
-    "hello from original function"
-}
-
-#[cfg(test)]
-mod tests {
-    use std::collections::HashMap;
-
-    use ligma::http_handler;
-    use serde::{Deserialize, Serialize};
-
-    use super::WebApi;
-    use crate::{
-        http_response::HttpResponse,
-        uri_params::{Query, Route},
-    };
-
-    fn hello_handler(
-        _route_params: Route,
-        _query_params: Query,
-        _body: Option<String>,
-    ) -> HttpResponse {
-        HttpResponse::ok(Some("hello from handler".to_string()))
-    }
-
-    fn route_params_handler(
-        _route_params: Route,
-        _query_params: Query,
-        _body: Option<String>,
-    ) -> HttpResponse {
-        HttpResponse::ok(Some("hello from route params handler".to_string()))
-    }
-
-    fn post_handler(
-        _route_params: Route,
-        _query_params: Query,
-        _body: Option<String>,
-    ) -> HttpResponse {
-        HttpResponse::ok(Some("hello from post method".to_string()))
-    }
-
-    #[test]
-    #[ignore = "starts api"]
-    fn aggr_result_struct_err() {
-        let _ = WebApi::new("172.17.0.2:6080", 5)
-            .get("/", Box::new(hello_handler))
-            .get(
-                "/route_params/{param_1}/{param_2}/hello",
-                Box::new(route_params_handler),
-            )
-            .post("/", Box::new(post_handler))
-            .run();
-    }
-
-    #[derive(Debug, Serialize, Deserialize)]
-    struct TestStruct {
-        omega: u32,
-    }
-
-    #[http_handler]
-    fn test_fn(_route: Route, _query: Query, _body: TestStruct) -> &'static str {
-        "hello from original function"
-    }
-
-    #[test]
-    fn macro_test() {
-        println!(
-            "{}",
-            test_fn(
-                Route(HashMap::new()),
-                Query(HashMap::new()),
-                Some("{ \"omega\": 5 }".to_string()),
-            )
-        );
     }
 }

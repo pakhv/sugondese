@@ -21,8 +21,6 @@ pub fn http_handler(_: TokenStream, item: TokenStream) -> TokenStream {
     let wrapper_handler_ident = input.sig.ident;
     let original_handler_ident = original_handler.clone().sig.ident;
 
-    let return_type = input.sig.output;
-
     let args = input.sig.inputs;
     let args = get_args_types_names(&args);
 
@@ -35,10 +33,14 @@ pub fn http_handler(_: TokenStream, item: TokenStream) -> TokenStream {
     let args_quote = build_args_quote(&args, route_arg, query_arg);
     let body_quote = get_body_quote(&args);
 
+    let response_mapping = map_response();
+
     if body_quote.is_none() {
         return quote! {
-            fn #wrapper_handler_ident(route: Route, query: Query, _body_string: Option<String>) #return_type {
-                return #original_handler_ident(#args_quote);
+            fn #wrapper_handler_ident(route: Route, query: Query, _body_string: Option<String>) -> sugondese::http_response::HttpResponse {
+                let result = #original_handler_ident(#args_quote);
+
+                #response_mapping
             }
 
             #original_handler
@@ -47,14 +49,40 @@ pub fn http_handler(_: TokenStream, item: TokenStream) -> TokenStream {
     }
 
     quote! {
-        fn #wrapper_handler_ident(route: Route, query: Query, body_string: Option<String>) #return_type {
+        fn #wrapper_handler_ident(route: Route, query: Query, body_string: Option<String>) -> sugondese::http_response::HttpResponse {
+            if body_string.is_none() {
+                return sugondese::http_response::HttpResponse {
+                    status: sugondese::http_response::HttpStatus::BadRequest,
+                    body: Some("body missing".to_string())
+                };
+            }
+
             #body_quote
-            return #original_handler_ident(#args_quote);
+            let result = #original_handler_ident(#args_quote);
+
+            #response_mapping
         }
 
         #original_handler
     }
     .into()
+}
+
+fn map_response() -> proc_macro2::TokenStream {
+    quote! {
+        let body_string = if result.data.is_some() {
+
+            Some(serde_json::to_string(&result.data.unwrap()).unwrap())
+        }
+        else {
+            None
+        };
+
+        sugondese::http_response::HttpResponse {
+            status: result.status,
+            body: body_string
+        }
+    }
 }
 
 fn get_body_quote(args_types_names: &Vec<FnArgInfo>) -> Option<proc_macro2::TokenStream> {
@@ -68,9 +96,18 @@ fn get_body_quote(args_types_names: &Vec<FnArgInfo>) -> Option<proc_macro2::Toke
 
     let body_type = extract_arg_type(body_arg_type_name.unwrap().arg.clone());
 
-    Some(
-        quote! { let body_obj: #body_type = serde_json::from_str(&body_string.unwrap()).unwrap(); },
-    )
+    Some(quote! {
+        let body_obj: serde_json::Result<#body_type> = serde_json::from_str(&body_string.unwrap());
+
+        if body_obj.is_err() {
+            return sugondese::http_response::HttpResponse {
+                status: sugondese::http_response::HttpStatus::BadRequest,
+                body: Some("Unable to deserialize body".to_string())
+            };
+        }
+
+        let body_obj = body_obj.unwrap();
+    })
 }
 
 fn build_args_quote(
@@ -90,7 +127,7 @@ fn build_args_quote(
         .count();
 
     if body_args_count > 1 {
-        panic!("omegalul stop");
+        panic!("Too many body parameters");
     }
 
     for (idx, arg_info) in args_types_names.iter().enumerate() {
@@ -164,13 +201,13 @@ fn get_fn_arg_type(arg: &FnArg) -> String {
 fn extract_arg_pat(a: FnArg) -> Box<Pat> {
     match a {
         FnArg::Typed(p) => p.pat,
-        _ => panic!("Not supported on types with `self`!"),
+        _ => panic!("Not supported argument type"),
     }
 }
 
 fn extract_arg_type(a: FnArg) -> Box<Type> {
     match a {
         FnArg::Typed(p) => p.ty,
-        _ => panic!("Not supported on types with `self`!"),
+        _ => panic!("Not supported argument type"),
     }
 }
