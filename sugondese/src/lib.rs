@@ -1,3 +1,4 @@
+pub mod http_handler_info;
 mod http_request;
 pub mod http_response;
 mod method_verb;

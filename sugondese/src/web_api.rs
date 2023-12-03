@@ -7,13 +7,13 @@ use std::{
 };
 
 use crate::{
+    http_handler_info::HttpHandlerInfo,
     http_request::HttpRequest,
     http_response::{HttpResponse, HttpStatus},
     method_verb::HttpMethod,
     request_parser::{
         parse_query, parse_request, parse_route, return_response, HttpRequestHandler,
     },
-    uri_params::{Query, Route},
 };
 
 pub struct WebApi<'a> {
@@ -107,43 +107,48 @@ impl<'a> WebApi<'a> {
         Ok(())
     }
 
-    pub fn get<Handler>(mut self, route: &'a str, handler: Handler) -> Self
+    pub fn get<Handler>(mut self, get_handler_info: Handler) -> Self
     where
-        Handler: Fn(Route, Query, Option<String>) -> HttpResponse + 'static,
+        Handler: Fn() -> HttpHandlerInfo,
     {
+        let handler_info = get_handler_info();
         let _ = &self
             .get_endpoints
-            .insert(route.to_string(), Box::new(handler));
+            .insert(handler_info.route, handler_info.handler);
         self
     }
 
-    pub fn post<Handler>(mut self, route: &'a str, handler: Handler) -> Self
+    pub fn post<Handler>(mut self, get_handler_info: Handler) -> Self
     where
-        Handler: Fn(Route, Query, Option<String>) -> HttpResponse + 'static,
+        Handler: Fn() -> HttpHandlerInfo,
     {
+        let handler_info = get_handler_info();
+
         let _ = &self
             .post_endpoints
-            .insert(route.to_string(), Box::new(handler));
+            .insert(handler_info.route, handler_info.handler);
         self
     }
 
-    pub fn delete<Handler>(mut self, route: &'a str, handler: Handler) -> Self
+    pub fn delete<Handler>(mut self, get_handler_info: Handler) -> Self
     where
-        Handler: Fn(Route, Query, Option<String>) -> HttpResponse + 'static,
+        Handler: Fn() -> HttpHandlerInfo,
     {
+        let handler_info = get_handler_info();
         let _ = &self
             .delete_endpoints
-            .insert(route.to_string(), Box::new(handler));
+            .insert(handler_info.route, handler_info.handler);
         self
     }
 
-    pub fn put<Handler>(mut self, route: &'a str, handler: Handler) -> Self
+    pub fn put<Handler>(mut self, get_handler_info: Handler) -> Self
     where
-        Handler: Fn(Route, Query, Option<String>) -> HttpResponse + 'static,
+        Handler: Fn() -> HttpHandlerInfo,
     {
+        let handler_info = get_handler_info();
         let _ = &self
             .put_endpoints
-            .insert(route.to_string(), Box::new(handler));
+            .insert(handler_info.route, handler_info.handler);
         self
     }
 

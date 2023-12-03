@@ -1,7 +1,8 @@
 use proc_macro::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{
-    parse_macro_input, punctuated::Punctuated, token::Comma, FnArg, Ident, ItemFn, Pat, Type,
+    parse_macro_input, punctuated::Punctuated, token::Comma, FnArg, Ident, ItemFn, LitStr, Pat,
+    Type,
 };
 
 #[derive(Clone)]
@@ -14,11 +15,15 @@ const ROUTE_NAME: &str = "Route";
 const QUERY_NAME: &str = "Query";
 
 #[proc_macro_attribute]
-pub fn http_handler(_: TokenStream, item: TokenStream) -> TokenStream {
+pub fn http_handler(args: TokenStream, item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(args as LitStr);
+    let route = args.value();
+
     let input = parse_macro_input!(item as syn::ItemFn);
 
     let original_handler = rename_original_handler(&input);
-    let wrapper_handler_ident = input.sig.ident;
+    let handler_ident = input.sig.ident.clone();
+    let wrapper_handler_ident = format_ident!("{}_wrapper", input.sig.ident.clone());
     let original_handler_ident = original_handler.clone().sig.ident;
 
     let args = input.sig.inputs;
@@ -37,6 +42,13 @@ pub fn http_handler(_: TokenStream, item: TokenStream) -> TokenStream {
 
     if body_quote.is_none() {
         return quote! {
+            fn #handler_ident() -> sugondese::http_handler_info::HttpHandlerInfo {
+                return sugondese::http_handler_info::HttpHandlerInfo {
+                    handler: Box::new(#wrapper_handler_ident),
+                    route: #route.to_string(),
+                };
+            }
+
             fn #wrapper_handler_ident(route: Route, query: Query, _body_string: Option<String>) -> sugondese::http_response::HttpResponse {
                 let result = #original_handler_ident(#args_quote);
 
@@ -49,6 +61,13 @@ pub fn http_handler(_: TokenStream, item: TokenStream) -> TokenStream {
     }
 
     quote! {
+        fn #handler_ident() -> sugondese::http_handler_info::HttpHandlerInfo {
+            return sugondese::http_handler_info::HttpHandlerInfo {
+                handler: Box::new(#wrapper_handler_ident),
+                route: #route.to_string(),
+            };
+        }
+
         fn #wrapper_handler_ident(route: Route, query: Query, body_string: Option<String>) -> sugondese::http_response::HttpResponse {
             if body_string.is_none() {
                 return sugondese::http_response::HttpResponse {
