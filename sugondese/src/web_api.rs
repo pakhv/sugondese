@@ -123,7 +123,6 @@ impl<'a> WebApi<'a> {
         Handler: Fn() -> HttpHandlerInfo,
     {
         let handler_info = get_handler_info();
-
         let _ = &self
             .post_endpoints
             .insert(handler_info.route, handler_info.handler);
