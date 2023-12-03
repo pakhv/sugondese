@@ -13,6 +13,7 @@ use crate::{
     request_parser::{
         parse_query, parse_request, parse_route, return_response, HttpRequestHandler,
     },
+    uri_params::{Query, Route},
 };
 
 pub struct WebApi<'a> {
@@ -106,23 +107,43 @@ impl<'a> WebApi<'a> {
         Ok(())
     }
 
-    pub fn get(mut self, route: &'a str, handler: HttpRequestHandler) -> Self {
-        let _ = &self.get_endpoints.insert(route.to_string(), handler);
+    pub fn get<Handler>(mut self, route: &'a str, handler: Handler) -> Self
+    where
+        Handler: Fn(Route, Query, Option<String>) -> HttpResponse + 'static,
+    {
+        let _ = &self
+            .get_endpoints
+            .insert(route.to_string(), Box::new(handler));
         self
     }
 
-    pub fn post(mut self, route: &'a str, handler: HttpRequestHandler) -> Self {
-        let _ = &self.post_endpoints.insert(route.to_string(), handler);
+    pub fn post<Handler>(mut self, route: &'a str, handler: Handler) -> Self
+    where
+        Handler: Fn(Route, Query, Option<String>) -> HttpResponse + 'static,
+    {
+        let _ = &self
+            .post_endpoints
+            .insert(route.to_string(), Box::new(handler));
         self
     }
 
-    pub fn delete(mut self, route: &'a str, handler: HttpRequestHandler) -> Self {
-        let _ = &self.delete_endpoints.insert(route.to_string(), handler);
+    pub fn delete<Handler>(mut self, route: &'a str, handler: Handler) -> Self
+    where
+        Handler: Fn(Route, Query, Option<String>) -> HttpResponse + 'static,
+    {
+        let _ = &self
+            .delete_endpoints
+            .insert(route.to_string(), Box::new(handler));
         self
     }
 
-    pub fn put(mut self, route: &'a str, handler: HttpRequestHandler) -> Self {
-        let _ = &self.put_endpoints.insert(route.to_string(), handler);
+    pub fn put<Handler>(mut self, route: &'a str, handler: Handler) -> Self
+    where
+        Handler: Fn(Route, Query, Option<String>) -> HttpResponse + 'static,
+    {
+        let _ = &self
+            .put_endpoints
+            .insert(route.to_string(), Box::new(handler));
         self
     }
 
