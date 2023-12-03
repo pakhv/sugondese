@@ -90,7 +90,6 @@ pub fn http_handler(args: TokenStream, item: TokenStream) -> TokenStream {
 fn map_response() -> proc_macro2::TokenStream {
     quote! {
         let body_string = if result.data.is_some() {
-
             Some(serde_json::to_string(&result.data.unwrap()).unwrap())
         }
         else {
