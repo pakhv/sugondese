@@ -1,8 +1,7 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    parse_macro_input, punctuated::Punctuated, token::Comma, FnArg, Ident, ItemFn, LitStr, Pat,
-    Type,
+    parse_macro_input, punctuated::Punctuated, token::Comma, FnArg, ItemFn, LitStr, Pat, Type,
 };
 
 #[derive(Clone)]
@@ -197,9 +196,8 @@ fn get_args_types_names(args: &Punctuated<FnArg, Comma>) -> Vec<FnArgInfo> {
 fn rename_original_handler(input: &ItemFn) -> ItemFn {
     let mut input_clone = input.clone();
     let fn_ident = &input.sig.ident;
-    let new_fn_ident_string = format!("_{}", fn_ident.to_string());
-    let new_fn_ident = Ident::new(&new_fn_ident_string, fn_ident.span());
-    input_clone.sig.ident = new_fn_ident.clone();
+    let new_fn_ident = format_ident!("_{}", fn_ident);
+    input_clone.sig.ident = new_fn_ident;
 
     return input_clone;
 }
