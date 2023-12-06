@@ -60,4 +60,4 @@ fn main() {
 }
 ```
 
-Snippet above starts a tcp listener on port `42069` and spawn 5 threads for handling http requests. Methods `get`, `post`, `put`, `delete` used to add user defined http handlers.
+Snippet above starts a tcp listener on port `42069` and spawns 5 threads for handling http requests. Methods `get`, `post`, `put`, `delete` used to add user defined http handlers.
