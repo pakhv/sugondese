@@ -4,14 +4,14 @@ use std::str::FromStr;
 use std::{io::BufReader, net::TcpStream, time::Duration};
 
 use crate::http_request::HttpRequest;
-use crate::http_response::HttpResponse;
+use crate::http_response::{HttpResponse, HttpStatus};
 use crate::method_verb::HttpMethod;
 use crate::uri_params::{Query, Route};
 
 const CONTENT_LENGTH_HEADER: &str = "content-length:";
 const STREAM_READ_TIMEOUT: u64 = 5;
 
-pub type HttpRequestHandler = Box<dyn Fn(Route, Query, Option<String>) -> HttpResponse>;
+pub type HttpRequestHandler = fn(Route, Query, Option<String>) -> HttpResponse;
 
 pub fn return_response(mut stream: std::net::TcpStream, response: HttpResponse) -> () {
     let status_description = response.status.get_status_info();
@@ -168,6 +168,31 @@ pub fn parse_route<'a>(
     (handler, Route(params))
 }
 
+pub fn handle_request(
+    request: HttpRequest,
+    endpoints_map: &HashMap<String, HttpRequestHandler>,
+    stream: TcpStream,
+) {
+    let (handler, route) = parse_route(&endpoints_map, &request.uri);
+
+    if handler.is_none() {
+        return_response(
+            stream,
+            HttpResponse {
+                status: HttpStatus::NotFound,
+                body: None,
+            },
+        );
+        return;
+    }
+
+    let handler = handler.unwrap();
+    let query = parse_query(&request.uri);
+    let response = handler(route, query, request.body);
+
+    return_response(stream, response);
+}
+
 fn read_body(reader: &mut BufReader<&TcpStream>, body_length: usize) -> Result<String> {
     let mut buffer = vec![0; body_length];
     let mut bytes_num = 0;
@@ -274,9 +299,9 @@ mod tests {
 
     #[test]
     fn parse_route_params_empty_list() {
-        let expected_handler: HttpRequestHandler = Box::new(|_, _, _| HttpResponse::ok(None));
-        let handler_1: HttpRequestHandler = Box::new(|_, _, _| HttpResponse::ok(None));
-        let handler_2: HttpRequestHandler = Box::new(|_, _, _| HttpResponse::ok(None));
+        let expected_handler: HttpRequestHandler = |_, _, _| HttpResponse::ok(None);
+        let handler_1: HttpRequestHandler = |_, _, _| HttpResponse::ok(None);
+        let handler_2: HttpRequestHandler = |_, _, _| HttpResponse::ok(None);
 
         let handlers = &HashMap::from([
             ("/some/very/very/very/long/path".to_string(), handler_1),
@@ -293,9 +318,9 @@ mod tests {
 
     #[test]
     fn parse_route_params_not_empty_list() {
-        let expected_handler: HttpRequestHandler = Box::new(|_, _, _| HttpResponse::ok(None));
-        let handler_1: HttpRequestHandler = Box::new(|_, _, _| HttpResponse::ok(None));
-        let handler_2: HttpRequestHandler = Box::new(|_, _, _| HttpResponse::ok(None));
+        let expected_handler: HttpRequestHandler = |_, _, _| HttpResponse::ok(None);
+        let handler_1: HttpRequestHandler = |_, _, _| HttpResponse::ok(None);
+        let handler_2: HttpRequestHandler = |_, _, _| HttpResponse::ok(None);
 
         let handlers = &HashMap::from([
             (

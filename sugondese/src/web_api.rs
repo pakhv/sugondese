@@ -1,24 +1,26 @@
 use std::{
     collections::HashMap,
     io::Result,
-    net::{TcpListener, TcpStream},
-    sync::{mpsc, Arc, Mutex},
+    net::TcpListener,
+    sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
 
 use crate::{
     http_handler_info::HttpHandlerInfo,
-    http_request::HttpRequest,
     http_response::{HttpResponse, HttpStatus},
     method_verb::HttpMethod,
-    request_parser::{
-        parse_query, parse_request, parse_route, return_response, HttpRequestHandler,
-    },
+    request_parser::{handle_request, parse_request, return_response, HttpRequestHandler},
 };
 
 pub struct WebApi<'a> {
     addr: &'a str,
     threads_num: usize,
+    endpoints: Endpoints,
+}
+
+#[derive(Clone)]
+struct Endpoints {
     get_endpoints: HashMap<String, HttpRequestHandler>,
     post_endpoints: HashMap<String, HttpRequestHandler>,
     delete_endpoints: HashMap<String, HttpRequestHandler>,
@@ -34,10 +36,12 @@ impl<'a> WebApi<'a> {
         WebApi {
             addr,
             threads_num,
-            get_endpoints: HashMap::new(),
-            post_endpoints: HashMap::new(),
-            delete_endpoints: HashMap::new(),
-            put_endpoints: HashMap::new(),
+            endpoints: Endpoints {
+                get_endpoints: HashMap::new(),
+                post_endpoints: HashMap::new(),
+                delete_endpoints: HashMap::new(),
+                put_endpoints: HashMap::new(),
+            },
         }
     }
 
@@ -45,12 +49,12 @@ impl<'a> WebApi<'a> {
         let tcp_listener: Arc<Mutex<TcpListener>> =
             Arc::new(Mutex::new(TcpListener::bind(self.addr)?));
 
+        let endpoints = Arc::new(self.endpoints.clone());
         let mut threads: Vec<JoinHandle<()>> = Vec::new();
-        let (tx, rx) = mpsc::channel::<(HttpRequest, TcpStream)>();
 
         for i in 1..self.threads_num {
             let listener = Arc::clone(&tcp_listener);
-            let tx = tx.clone();
+            let thread_endpoints = Arc::clone(&endpoints);
 
             let handle = thread::spawn(move || loop {
                 let stream = listener.lock().unwrap().incoming().next().unwrap().unwrap();
@@ -71,33 +75,11 @@ impl<'a> WebApi<'a> {
                 }
                 let request = request.unwrap();
 
-                tx.send((request, stream))
-                    .unwrap_or_else(|e| println!("{e}"));
+                let endpoints_map = get_endpoints_map(&request.method, &thread_endpoints);
+                handle_request(request, endpoints_map, stream);
             });
 
             threads.push(handle);
-        }
-
-        for (request, stream) in rx.iter() {
-            let endpoints_map = self.get_endpoints_map(request.method);
-            let (handler, route) = parse_route(endpoints_map, &request.uri);
-
-            if handler.is_none() {
-                return_response(
-                    stream,
-                    HttpResponse {
-                        status: HttpStatus::NotFound,
-                        body: None,
-                    },
-                );
-                continue;
-            }
-
-            let handler = handler.unwrap();
-            let query = parse_query(&request.uri);
-            let response = handler(route, query, request.body);
-
-            return_response(stream, response);
         }
 
         for th in threads {
@@ -113,6 +95,7 @@ impl<'a> WebApi<'a> {
     {
         let handler_info = get_handler_info();
         let _ = &self
+            .endpoints
             .get_endpoints
             .insert(handler_info.route, handler_info.handler);
         self
@@ -124,6 +107,7 @@ impl<'a> WebApi<'a> {
     {
         let handler_info = get_handler_info();
         let _ = &self
+            .endpoints
             .post_endpoints
             .insert(handler_info.route, handler_info.handler);
         self
@@ -135,6 +119,7 @@ impl<'a> WebApi<'a> {
     {
         let handler_info = get_handler_info();
         let _ = &self
+            .endpoints
             .delete_endpoints
             .insert(handler_info.route, handler_info.handler);
         self
@@ -146,17 +131,21 @@ impl<'a> WebApi<'a> {
     {
         let handler_info = get_handler_info();
         let _ = &self
+            .endpoints
             .put_endpoints
             .insert(handler_info.route, handler_info.handler);
         self
     }
+}
 
-    fn get_endpoints_map(&self, method: HttpMethod) -> &HashMap<String, HttpRequestHandler> {
-        match method {
-            crate::method_verb::HttpMethod::Get => &self.get_endpoints,
-            crate::method_verb::HttpMethod::Post => &self.post_endpoints,
-            crate::method_verb::HttpMethod::Delete => &self.delete_endpoints,
-            crate::method_verb::HttpMethod::Put => &self.put_endpoints,
-        }
+fn get_endpoints_map<'a>(
+    method: &HttpMethod,
+    endpoints: &'a Endpoints,
+) -> &'a HashMap<String, HttpRequestHandler> {
+    match method {
+        HttpMethod::Get => &endpoints.get_endpoints,
+        HttpMethod::Post => &endpoints.post_endpoints,
+        HttpMethod::Delete => &endpoints.delete_endpoints,
+        HttpMethod::Put => &endpoints.put_endpoints,
     }
 }

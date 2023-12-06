@@ -43,7 +43,7 @@ pub fn http_handler(args: TokenStream, item: TokenStream) -> TokenStream {
         return quote! {
             fn #handler_ident() -> sugondese::http_handler_info::HttpHandlerInfo {
                 return sugondese::http_handler_info::HttpHandlerInfo {
-                    handler: Box::new(#wrapper_handler_ident),
+                    handler: #wrapper_handler_ident,
                     route: #route.to_string(),
                 };
             }
@@ -62,7 +62,7 @@ pub fn http_handler(args: TokenStream, item: TokenStream) -> TokenStream {
     quote! {
         fn #handler_ident() -> sugondese::http_handler_info::HttpHandlerInfo {
             return sugondese::http_handler_info::HttpHandlerInfo {
-                handler: Box::new(#wrapper_handler_ident),
+                handler: #wrapper_handler_ident,
                 route: #route.to_string(),
             };
         }
